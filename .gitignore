@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.env
+!backend/.env.example
+
+# Flask
+instance/
+.webassets-cache
+
+# Node
+node_modules/
+.next/
+out/
+.cache/
+
+# Uploads (pushed separately later)
+backend/uploads/
+
+# Seed & migration scripts (pushed separately later)
+backend/seed_demo_data.py
+backend/migrations/
+
+# Tests (pushed separately later)
+backend/tests/
+
+# Zip archives
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
