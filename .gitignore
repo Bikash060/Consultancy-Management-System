@@ -28,7 +28,6 @@ out/
 backend/uploads/
 
 # Seed & migration scripts (pushed separately later)
-backend/seed_demo_data.py
 backend/migrations/
 
 # Tests (pushed separately later)
