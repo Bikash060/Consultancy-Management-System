@@ -49,7 +49,7 @@ class Config:
     # File Upload Settings
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'}
+    ALLOWED_EXTENSIONS = {'pdf', 'png'}
     
     # Email Settings (for notifications)
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
