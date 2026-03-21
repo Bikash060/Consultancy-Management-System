@@ -19,6 +19,8 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.Enum(UserRole), default=UserRole.CLIENT, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+    profile_setup = db.Column(db.Boolean, default=False)
+    assigned_counselor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -44,6 +46,8 @@ class User(db.Model):
             'phone': self.phone,
             'role': self.role.value,
             'is_active': self.is_active,
+            'profile_setup': self.profile_setup,
+            'assigned_counselor_id': self.assigned_counselor_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'profile': self.profile.to_dict() if self.profile else None
         }
@@ -63,6 +67,29 @@ class Profile(db.Model):
     preferred_course = db.Column(db.String(200), nullable=True)
     budget = db.Column(db.Numeric(12, 2), nullable=True)
     passport_number = db.Column(db.String(50), nullable=True)
+    # Onboarding fields
+    father_name = db.Column(db.String(100), nullable=True)
+    mother_name = db.Column(db.String(100), nullable=True)
+    parent_phone = db.Column(db.String(20), nullable=True)
+    parent_email = db.Column(db.String(120), nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    state = db.Column(db.String(100), nullable=True)
+    zip_code = db.Column(db.String(20), nullable=True)
+    country_of_residence = db.Column(db.String(100), nullable=True)
+    neb_gpa = db.Column(db.String(10), nullable=True)
+    neb_stream = db.Column(db.String(50), nullable=True)
+    neb_year = db.Column(db.String(10), nullable=True)
+    neb_school = db.Column(db.String(200), nullable=True)
+    bachelors_university = db.Column(db.String(200), nullable=True)
+    bachelors_course = db.Column(db.String(200), nullable=True)
+    bachelors_gpa = db.Column(db.String(10), nullable=True)
+    english_test_type = db.Column(db.String(20), nullable=True)
+    english_test_score = db.Column(db.String(20), nullable=True)
+    interests = db.Column(db.Text, nullable=True)
+    career_goals = db.Column(db.Text, nullable=True)
+    gender = db.Column(db.String(20), nullable=True)
+    nationality = db.Column(db.String(100), nullable=True)
+    marital_status = db.Column(db.String(20), nullable=True)
     
     user = db.relationship('User', back_populates='profile')
     
@@ -77,5 +104,27 @@ class Profile(db.Model):
             'preferred_country': self.preferred_country,
             'preferred_course': self.preferred_course,
             'budget': float(self.budget) if self.budget else None,
-            'passport_number': self.passport_number
+            'passport_number': self.passport_number,
+            'father_name': self.father_name,
+            'mother_name': self.mother_name,
+            'parent_phone': self.parent_phone,
+            'parent_email': self.parent_email,
+            'city': self.city,
+            'state': self.state,
+            'zip_code': self.zip_code,
+            'country_of_residence': self.country_of_residence,
+            'neb_gpa': self.neb_gpa,
+            'neb_stream': self.neb_stream,
+            'neb_year': self.neb_year,
+            'neb_school': self.neb_school,
+            'bachelors_university': self.bachelors_university,
+            'bachelors_course': self.bachelors_course,
+            'bachelors_gpa': self.bachelors_gpa,
+            'english_test_type': self.english_test_type,
+            'english_test_score': self.english_test_score,
+            'interests': self.interests,
+            'career_goals': self.career_goals,
+            'gender': self.gender,
+            'nationality': self.nationality,
+            'marital_status': self.marital_status,
         }
