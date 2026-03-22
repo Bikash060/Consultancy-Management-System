@@ -1,9 +1,11 @@
 from datetime import datetime
-from enum import Enum
 from ..extensions import db
 
 
-class ApplicationStatus(Enum):
+# Status constants — stored as plain strings in DB to avoid SQLAlchemy enum name/value mismatch
+class ApplicationStatus:
+    PENDING = 'pending'
+    REJECTED = 'rejected'
     DOCUMENT_COLLECTION = 'document_collection'
     APPLICATION_SUBMITTED = 'application_submitted'
     OFFER_RECEIVED = 'offer_received'
@@ -12,7 +14,7 @@ class ApplicationStatus(Enum):
     VISA_REJECTED = 'visa_rejected'
 
 
-class StageStatus(Enum):
+class StageStatus:
     PENDING = 'pending'
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
@@ -23,12 +25,12 @@ class Application(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    counselor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    counselor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     university = db.Column(db.String(200), nullable=True)
     country = db.Column(db.String(100), nullable=False)
     course = db.Column(db.String(200), nullable=True)
     intake = db.Column(db.String(50), nullable=True)
-    status = db.Column(db.Enum(ApplicationStatus), default=ApplicationStatus.DOCUMENT_COLLECTION)
+    status = db.Column(db.String(50), nullable=False, default=ApplicationStatus.PENDING)
     offer_letter_path = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -47,7 +49,7 @@ class Application(db.Model):
             'country': self.country,
             'course': self.course,
             'intake': self.intake,
-            'status': self.status.value,
+            'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'stages': [s.to_dict() for s in self.stages]
         }
@@ -59,7 +61,7 @@ class ApplicationStage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     application_id = db.Column(db.Integer, db.ForeignKey('applications.id'), nullable=False)
     stage_name = db.Column(db.String(100), nullable=False)
-    status = db.Column(db.Enum(StageStatus), default=StageStatus.PENDING)
+    status = db.Column(db.String(20), nullable=False, default=StageStatus.PENDING)
     notes = db.Column(db.Text, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     
@@ -69,7 +71,7 @@ class ApplicationStage(db.Model):
         return {
             'id': self.id,
             'stage_name': self.stage_name,
-            'status': self.status.value,
+            'status': self.status,
             'notes': self.notes,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
