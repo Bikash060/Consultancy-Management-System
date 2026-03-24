@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from ..extensions import db
 from ..models.user import User, UserRole
-from ..models.application import Application, ApplicationStage, ApplicationStatus, StageStatus
+from ..models.application import Application, ApplicationStage, ApplicationStatus
 
 applications_bp = Blueprint('applications', __name__)
 
@@ -22,37 +22,46 @@ def create_application():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     data = request.get_json()
-    
-    if user.role not in [UserRole.COUNSELOR, UserRole.ADMIN]:
-        return jsonify({'success': False, 'message': 'Permission denied'}), 403
-    
-    client_id = data.get('client_id')
+
     country = data.get('country')
-    
-    if not client_id or not country:
-        return jsonify({'success': False, 'message': 'Client and country required'}), 400
-    
+    if not country:
+        return jsonify({'success': False, 'message': 'Country is required'}), 400
+
+    # Clients create applications for themselves
+    if user.role == UserRole.CLIENT:
+        client_id = user.id
+        # Always use the client's assigned counselor
+        counselor_id = user.assigned_counselor_id or data.get('counselor_id')
+    elif user.role in [UserRole.COUNSELOR, UserRole.ADMIN]:
+        client_id = data.get('client_id')
+        if not client_id:
+            return jsonify({'success': False, 'message': 'Client is required'}), 400
+        counselor_id = user.id
+    else:
+        return jsonify({'success': False, 'message': 'Permission denied'}), 403
+
     application = Application(
         client_id=client_id,
-        counselor_id=user_id,
+        counselor_id=counselor_id,
         country=country,
         university=data.get('university'),
         course=data.get('course'),
-        intake=data.get('intake')
+        intake=data.get('intake'),
+        status=ApplicationStatus.PENDING
     )
-    
+
     db.session.add(application)
     db.session.flush()
-    
+
     for stage_name in DEFAULT_STAGES:
         stage = ApplicationStage(
             application_id=application.id,
             stage_name=stage_name
         )
         db.session.add(stage)
-    
+
     db.session.commit()
-    
+
     return jsonify({
         'success': True,
         'application': application.to_dict()
@@ -71,7 +80,8 @@ def get_applications():
     if user.role == UserRole.CLIENT:
         applications = Application.query.filter_by(client_id=user_id).all()
     elif user.role == UserRole.COUNSELOR:
-        applications = Application.query.filter_by(counselor_id=user_id).all()
+        # Show only applications assigned to this counselor
+        applications = Application.query.filter_by(counselor_id=int(user_id)).all()
     else:
         applications = Application.query.all()
     
@@ -111,7 +121,10 @@ def update_application(app_id):
             setattr(application, field, data[field])
     
     if 'status' in data:
-        application.status = ApplicationStatus(data['status'])
+        application.status = data['status']
+        # When a counselor accepts a pending application, assign themselves
+        if data['status'] != 'pending' and data['status'] != 'rejected' and not application.counselor_id:
+            application.counselor_id = user_id
     
     db.session.commit()
     
@@ -133,7 +146,7 @@ def update_stage(app_id, stage_id):
         return jsonify({'success': False, 'message': 'Stage not found'}), 404
     
     if 'status' in data:
-        stage.status = StageStatus(data['status'])
+        stage.status = data['status']
         if data['status'] == 'completed':
             stage.completed_at = datetime.utcnow()
     
