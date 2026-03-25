@@ -11,17 +11,20 @@ appointments_bp = Blueprint('appointments', __name__)
 @appointments_bp.route('', methods=['POST'])
 @jwt_required()
 def create_appointment():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.get_json()
     
-    counselor_id = data.get('counselor_id')
+    client = User.query.get(user_id)
     scheduled_at = data.get('scheduled_at')
     appointment_type = data.get('type', 'online')
     notes = data.get('notes', '')
-    
+
+    # Use client's assigned counselor; fall back to provided counselor_id
+    counselor_id = client.assigned_counselor_id or data.get('counselor_id')
+
     if not counselor_id or not scheduled_at:
         return jsonify({'success': False, 'message': 'Counselor and date required'}), 400
-    
+
     counselor = User.query.get(counselor_id)
     if not counselor or counselor.role != UserRole.COUNSELOR:
         return jsonify({'success': False, 'message': 'Invalid counselor'}), 400
@@ -47,7 +50,7 @@ def create_appointment():
 @appointments_bp.route('', methods=['GET'])
 @jwt_required()
 def get_appointments():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     
     if not user:
@@ -69,7 +72,7 @@ def get_appointments():
 @appointments_bp.route('/<int:appointment_id>', methods=['PUT'])
 @jwt_required()
 def update_appointment(appointment_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     data = request.get_json()
     
@@ -98,7 +101,7 @@ def update_appointment(appointment_id):
 @appointments_bp.route('/<int:appointment_id>', methods=['DELETE'])
 @jwt_required()
 def cancel_appointment(appointment_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     
     appointment = Appointment.query.get(appointment_id)
     if not appointment:
