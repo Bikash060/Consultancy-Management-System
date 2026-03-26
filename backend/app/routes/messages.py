@@ -10,7 +10,7 @@ messages_bp = Blueprint('messages', __name__)
 @messages_bp.route('', methods=['POST'])
 @jwt_required()
 def send_message():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.get_json()
     
     receiver_id = data.get('receiver_id')
@@ -41,7 +41,7 @@ def send_message():
 @messages_bp.route('', methods=['GET'])
 @jwt_required()
 def get_messages():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     other_user_id = request.args.get('user_id')
     
     query = Message.query.filter(
@@ -70,7 +70,7 @@ def get_messages():
 @messages_bp.route('/conversations', methods=['GET'])
 @jwt_required()
 def get_conversations():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     
     sent = db.session.query(Message.receiver_id).filter(Message.sender_id == user_id).distinct()
     received = db.session.query(Message.sender_id).filter(Message.receiver_id == user_id).distinct()
@@ -84,10 +84,35 @@ def get_conversations():
     })
 
 
+@messages_bp.route('/read', methods=['PUT'])
+@jwt_required()
+def mark_read_batch():
+    """Mark all messages from a specific user as read."""
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+    other_user_id = data.get('user_id')
+
+    if not other_user_id:
+        return jsonify({'success': False, 'message': 'user_id is required'}), 400
+
+    messages = Message.query.filter_by(
+        sender_id=other_user_id,
+        receiver_id=user_id,
+        is_read=False
+    ).all()
+
+    for message in messages:
+        message.is_read = True
+
+    db.session.commit()
+
+    return jsonify({'success': True, 'marked': len(messages)})
+
+
 @messages_bp.route('/<int:message_id>/read', methods=['PUT'])
 @jwt_required()
 def mark_read(message_id):
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     
     message = Message.query.get(message_id)
     if not message:
