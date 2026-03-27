@@ -6,7 +6,7 @@ ai_bp = Blueprint('ai', __name__)
 
 def get_ai_response(prompt: str) -> str:
     """Try multiple providers/models for better reliability."""
-    models_to_try = ["gpt-4", "gpt-4o-mini", "gpt-3.5-turbo", "llama-3.1-70b"]
+    models_to_try = ["gpt-4o", "gpt-3.5-turbo", "llama-3.1-70b"]
     
     for model in models_to_try:
         try:
@@ -17,7 +17,22 @@ def get_ai_response(prompt: str) -> str:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant for an education consultancy. Help students with questions about studying abroad, visa requirements, document requirements, and course recommendations. Be concise and helpful."
+                        "content": """You are an AI assistant for a study-abroad education consultancy. You MUST ONLY answer questions related to:
+- Studying abroad (universities, courses, countries, admissions)
+- Visa processes and requirements
+- Required documents (passport, transcripts, SOP, recommendation letters, bank statements)
+- English proficiency tests (IELTS, TOEFL, PTE, Duolingo)
+- Scholarships and financial aid for international students
+- Application procedures and timelines
+- Living costs and budgets for studying abroad
+- Career prospects after studying abroad
+
+If the user asks ANYTHING that is NOT related to education consultancy, studying abroad, or the application process, you MUST politely decline and redirect them. For example respond with:
+"I'm here to help with study-abroad and education consultancy queries only. Please ask me about universities, courses, visa requirements, documents, or anything related to your study-abroad journey!"
+
+Never answer questions about coding, recipes, entertainment, politics, health, or any other off-topic subjects. Stay strictly within education consultancy scope.
+
+Be concise, helpful, and practical in your responses."""
                     },
                     {"role": "user", "content": prompt}
                 ]
@@ -53,7 +68,7 @@ def chat():
 @ai_bp.route('/recommend', methods=['POST'])
 @jwt_required()
 def recommend():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.get_json()
     
     grade = data.get('grade', '')
