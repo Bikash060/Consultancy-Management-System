@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://aacademyapi.ashlya.com/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -49,8 +49,10 @@ export const authApi = {
     me: () => api.get('/auth/me'),
     forgotPassword: (email: string) =>
         api.post('/auth/forgot-password', { email }),
-    resetPassword: (token: string, password: string) =>
-        api.post('/auth/reset-password', { token, password }),
+    verifyOtp: (email: string, otp: string) =>
+        api.post('/auth/verify-otp', { email, otp }),
+    resetPassword: (email: string, otp: string, password: string) =>
+        api.post('/auth/reset-password', { email, otp, password }),
 };
 
 export const usersApi = {
@@ -61,6 +63,7 @@ export const usersApi = {
     update: (id: number, data: Record<string, unknown>) => api.put(`/users/${id}`, data),
     delete: (id: number) => api.delete(`/users/${id}`),
     updateProfile: (data: Record<string, unknown>) => api.put('/users/profile', data),
+    completeOnboarding: (data: Record<string, unknown>) => api.post('/users/onboarding', data),
 };
 
 export const appointmentsApi = {
@@ -81,7 +84,7 @@ export const applicationsApi = {
 };
 
 export const documentsApi = {
-    getAll: () => api.get('/documents'),
+    getAll: (clientId?: number) => api.get('/documents', { params: clientId ? { client_id: clientId } : {} }),
     getById: (id: number) => api.get(`/documents/${id}`),
     upload: (file: File, documentType: string) => {
         const formData = new FormData();
@@ -91,16 +94,21 @@ export const documentsApi = {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
     },
-    verify: (id: number) => api.put(`/documents/${id}/verify`),
+    verify: (id: number, status: string = 'verified', comments?: string) => 
+        api.put(`/documents/${id}/verify`, { status, comments: comments || '' }),
     delete: (id: number) => api.delete(`/documents/${id}`),
+    getViewUrl: (id: number) => {
+        const token = localStorage.getItem('access_token');
+        return `${API_URL}/documents/${id}/download?token=${token}`;
+    },
 };
 
 export const messagesApi = {
     getConversations: () => api.get('/messages/conversations'),
-    getMessages: (userId: number) => api.get(`/messages/${userId}`),
+    getMessages: (userId: number) => api.get('/messages', { params: { user_id: userId } }),
     send: (receiverId: number, content: string) =>
         api.post('/messages', { receiver_id: receiverId, content }),
-    markAsRead: (userId: number) => api.put(`/messages/${userId}/read`),
+    markAsRead: (userId: number) => api.put('/messages/read', { user_id: userId }),
 };
 
 export const aiApi = {
@@ -116,22 +124,51 @@ export const statsApi = {
 };
 
 export const adminApi = {
-    getDashboard: () => api.get('/admin/stats'),
-    getStats: () => api.get('/admin/stats'),
-    getCountryStats: () => api.get('/admin/country-stats'),
+    // Dashboard
+    getDashboard: () => api.get('/admin/dashboard'),
+    getStats: () => api.get('/admin/dashboard'),
+    // Reports & Analytics
+    getReports: () => api.get('/admin/reports/counselor-performance'),
+    getCountryStats: () => api.get('/admin/reports/country-stats'),
+    getUniversityStats: () => api.get('/admin/reports/university-stats'),
+    getMonthlyTrends: () => api.get('/admin/reports/monthly-trends'),
+    // Public countries (for all authenticated users / dropdowns)
+    getPublicCountries: () => api.get('/admin/countries'),
     // User management
-    getUsers: (role?: string) => api.get('/admin/users', { params: { role } }),
+    getUsers: (role?: string, page?: number, per_page?: number, search?: string) =>
+        api.get('/admin/users', { params: { role, page, per_page, search } }),
     getUser: (id: number) => api.get(`/admin/users/${id}`),
     createUser: (data: { email: string; password: string; first_name: string; last_name: string; role: string }) =>
         api.post('/admin/users', data),
     updateUser: (id: number, data: Partial<{ email: string; is_active: boolean; role: string }>) =>
         api.put(`/admin/users/${id}`, data),
     deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
-    // Reports
-    getReports: () => api.get('/admin/reports/counselor-performance'),
-    // Settings
+    // General Settings
     getSettings: () => api.get('/admin/settings'),
     updateSettings: (data: Record<string, unknown>) => api.put('/admin/settings', data),
+    // Countries CRUD
+    getCountries: () => api.get('/admin/settings/countries'),
+    createCountry: (data: { name: string; code: string }) =>
+        api.post('/admin/settings/countries', data),
+    updateCountry: (id: number, data: { name?: string; code?: string; is_active?: boolean }) =>
+        api.put(`/admin/settings/countries/${id}`, data),
+    deleteCountry: (id: number) => api.delete(`/admin/settings/countries/${id}`),
+    // Universities CRUD
+    createUniversity: (countryId: number, data: { name: string }) =>
+        api.post(`/admin/settings/countries/${countryId}/universities`, data),
+    updateUniversity: (id: number, data: { name?: string; is_active?: boolean }) =>
+        api.put(`/admin/settings/universities/${id}`, data),
+    deleteUniversity: (id: number) => api.delete(`/admin/settings/universities/${id}`),
+    // Courses CRUD
+    createCourse: (universityId: number, data: { name: string; duration?: string; fee?: string }) =>
+        api.post(`/admin/settings/universities/${universityId}/courses`, data),
+    updateCourse: (id: number, data: { name?: string; duration?: string; fee?: string; is_active?: boolean }) =>
+        api.put(`/admin/settings/courses/${id}`, data),
+    deleteCourse: (id: number) => api.delete(`/admin/settings/courses/${id}`),
+    // Intakes CRUD
+    getIntakes: () => api.get('/admin/intakes'),
+    addIntake: (data: { name: string; year: number }) => api.post('/admin/intakes', data),
+    deleteIntake: (id: number) => api.delete(`/admin/intakes/${id}`),
 };
 
 export default api;
