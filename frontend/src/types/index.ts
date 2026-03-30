@@ -4,6 +4,8 @@ export interface User {
     phone: string | null;
     role: 'client' | 'counselor' | 'admin';
     is_active: boolean;
+    profile_setup: boolean;
+    assigned_counselor_id: number | null;
     created_at: string;
     profile: Profile | null;
 }
@@ -19,6 +21,28 @@ export interface Profile {
     preferred_course: string | null;
     budget: number | null;
     passport_number: string | null;
+    father_name: string | null;
+    mother_name: string | null;
+    parent_phone: string | null;
+    parent_email: string | null;
+    city: string | null;
+    state: string | null;
+    zip_code: string | null;
+    country_of_residence: string | null;
+    neb_gpa: string | null;
+    neb_stream: string | null;
+    neb_year: string | null;
+    neb_school: string | null;
+    bachelors_university: string | null;
+    bachelors_course: string | null;
+    bachelors_gpa: string | null;
+    english_test_type: string | null;
+    english_test_score: string | null;
+    interests: string | null;
+    career_goals: string | null;
+    gender: string | null;
+    nationality: string | null;
+    marital_status: string | null;
 }
 
 export interface Appointment {
@@ -41,6 +65,7 @@ export interface Document {
     comments: string | null;
     uploaded_at: string;
     verified_at: string | null;
+    download_url: string | null;
 }
 
 export interface Application {
@@ -71,4 +96,12 @@ export interface Message {
     content: string;
     is_read: boolean;
     sent_at: string;
+}
+
+export interface Intake {
+    id: number;
+    name: string;
+    year: number;
+    is_active: boolean;
+    created_at: string;
 }
