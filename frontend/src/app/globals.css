@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Enable class-based dark mode (ThemeProvider toggles .dark on <html>) */
+@variant dark (&:where(.dark, .dark *));
+
+
 /* Custom theme extensions */
 @theme {
   /* Custom colors */
