@@ -2,8 +2,22 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Card, Button, Badge } from '@/components/ui';
-import { applicationsApi, usersApi } from '@/lib/api';
+import { applicationsApi, usersApi, adminApi } from '@/lib/api';
 import type { Application, User } from '@/types';
+
+interface CourseOption { id: number; name: string; duration?: string; fee?: string; }
+interface UniOption { id: number; name: string; courses: CourseOption[]; }
+interface CountryOption {
+    id: number;
+    name: string;
+    code: string;
+    universities: UniOption[];
+}
+
+function getFlag(code: string) {
+    if (!code || code.length !== 2) return '';
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => c.charCodeAt(0) + 127397));
+}
 
 const APPLICATION_STAGES = [
     { value: 'document_collection', label: 'Document Collection', icon: '📁' },
@@ -17,18 +31,30 @@ const APPLICATION_STAGES = [
 export default function CounselorApplicationsPage() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [clients, setClients] = useState<User[]>([]);
+    const [countries, setCountries] = useState<CountryOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<string>('all');
     const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [createFormData, setCreateFormData] = useState({
+        client_id: '',
+        country: '',
+        university: '',
+        course: '',
+        intake: '',
+    });
 
     const loadData = useCallback(async () => {
         try {
-            const [appsRes, clientsRes] = await Promise.all([
+            const [appsRes, clientsRes, countriesRes] = await Promise.all([
                 applicationsApi.getAll(),
                 usersApi.getClients(),
+                adminApi.getPublicCountries(),
             ]);
             setApplications(appsRes.data.applications || []);
             setClients(clientsRes.data.clients || []);
+            setCountries(countriesRes.data.countries || []);
         } catch (error) {
             console.error('Failed to load applications:', error);
         } finally {
@@ -50,17 +76,61 @@ export default function CounselorApplicationsPage() {
         }
     };
 
+    const handleAccept = async (app: Application) => {
+        try {
+            await applicationsApi.update(app.id, { status: 'document_collection' });
+            loadData();
+        } catch (error) {
+            console.error('Failed to accept application:', error);
+        }
+    };
+
+    const handleReject = async (app: Application) => {
+        try {
+            await applicationsApi.update(app.id, { status: 'rejected' });
+            loadData();
+        } catch (error) {
+            console.error('Failed to reject application:', error);
+        }
+    };
+
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setCreating(true);
+        try {
+            await applicationsApi.create({
+                client_id: parseInt(createFormData.client_id),
+                country: createFormData.country,
+                university: createFormData.university || undefined,
+                course: createFormData.course || undefined,
+                intake: createFormData.intake || undefined,
+            });
+            setShowCreateModal(false);
+            setCreateFormData({ client_id: '', country: '', university: '', course: '', intake: '' });
+            loadData();
+        } catch (error) {
+            console.error('Failed to create application:', error);
+        } finally {
+            setCreating(false);
+        }
+    };
+
     const getClientName = (clientId: number) => {
         const client = clients.find(c => c.id === clientId);
         return client ? `${client.profile?.first_name || ''} ${client.profile?.last_name || ''}`.trim() || client.email : 'Unknown';
     };
 
-    const filteredApplications = applications.filter(app => {
+    const pendingApps = applications.filter(a => a.status === 'pending');
+    const activeApps = applications.filter(a => a.status !== 'pending');
+
+    const filteredApplications = activeApps.filter(app => {
         if (filter === 'all') return true;
         return app.status === filter;
     });
 
     const statusColors: Record<string, 'info' | 'warning' | 'success' | 'error' | 'default'> = {
+        pending: 'warning',
+        rejected: 'error',
         document_collection: 'info',
         application_submitted: 'warning',
         offer_received: 'success',
@@ -73,8 +143,9 @@ export default function CounselorApplicationsPage() {
         total: applications.length,
         inProgress: applications.filter(a => ['document_collection', 'application_submitted', 'offer_received', 'visa_lodged'].includes(a.status)).length,
         approved: applications.filter(a => a.status === 'visa_approved').length,
-        rejected: applications.filter(a => a.status === 'visa_rejected').length,
+        rejected: applications.filter(a => ['visa_rejected', 'rejected'].includes(a.status)).length,
     };
+
 
     if (loading) {
         return (
@@ -93,14 +164,17 @@ export default function CounselorApplicationsPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-600 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-                    <FolderIcon className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-600 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                        <FolderIcon className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Applications</h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">Track and update client application stages</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">Applications</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Track and update client application stages</p>
-                </div>
+                <Button onClick={() => setShowCreateModal(true)}>+ Create Application</Button>
             </div>
 
             {/* Stats */}
@@ -110,6 +184,47 @@ export default function CounselorApplicationsPage() {
                 <StatsCard label="Approved" value={stats.approved} color="green" />
                 <StatsCard label="Rejected" value={stats.rejected} color="red" />
             </div>
+
+            {/* Pending Applications — needs review */}
+            {pendingApps.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-5 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">⏳</span>
+                        <h2 className="font-semibold text-amber-800 dark:text-amber-300">Pending Review ({pendingApps.length})</h2>
+                        <span className="text-sm text-amber-600 dark:text-amber-400">— client-submitted applications awaiting your decision</span>
+                    </div>
+                    {pendingApps.map((app) => (
+                        <div key={app.id} className="bg-white dark:bg-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg">🌍</span>
+                                    <p className="font-semibold text-slate-900 dark:text-white">{app.country}</p>
+                                    {app.university && <span className="text-slate-400 text-sm">— {app.university}</span>}
+                                </div>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Client: {getClientName(app.client_id)}
+                                    {app.course && ` • ${app.course}`}
+                                    {app.intake && ` • ${app.intake}`}
+                                </p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                                <button
+                                    onClick={() => handleReject(app)}
+                                    className="px-4 py-2 rounded-xl bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-semibold text-sm hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                >
+                                    ✕ Reject
+                                </button>
+                                <button
+                                    onClick={() => handleAccept(app)}
+                                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors shadow-lg shadow-emerald-500/20"
+                                >
+                                    ✓ Accept
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Filter & List */}
             <Card>
@@ -204,14 +319,118 @@ export default function CounselorApplicationsPage() {
                 )}
             </Card>
 
+            {/* Create Application Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-lg shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Create Application</h2>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Set up a new application for a client</p>
+                            </div>
+                            <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={handleCreate} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Client <span className="text-red-500">*</span></label>
+                                <select
+                                    value={createFormData.client_id}
+                                    onChange={(e) => setCreateFormData({ ...createFormData, client_id: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                >
+                                    <option value="">Select client</option>
+                                    {clients.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.profile?.first_name} {c.profile?.last_name} ({c.email})
+                                        </option>
+                                    ))}
+                                </select>
+                                {clients.length === 0 && <p className="text-xs text-amber-600 mt-1">No clients yet. Clients appear when they message you.</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Country <span className="text-red-500">*</span></label>
+                                <select
+                                    value={createFormData.country}
+                                    onChange={(e) => setCreateFormData({ ...createFormData, country: e.target.value, university: '', course: '' })}
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                >
+                                    <option value="">Select country</option>
+                                    {countries.map((c) => <option key={c.id} value={c.name}>{getFlag(c.code)} {c.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">University</label>
+                                {(() => {
+                                    const selCountry = countries.find(c => c.name === createFormData.country);
+                                    const unis = selCountry?.universities || [];
+                                    return (
+                                        <select
+                                            value={createFormData.university}
+                                            onChange={(e) => setCreateFormData({ ...createFormData, university: e.target.value, course: '' })}
+                                            className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            disabled={!createFormData.country}
+                                        >
+                                            <option value="">{createFormData.country ? 'Select university' : 'Select country first'}</option>
+                                            {unis.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                        </select>
+                                    );
+                                })()}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Course / Program</label>
+                                    {(() => {
+                                        const selCountry = countries.find(c => c.name === createFormData.country);
+                                        const selUni = selCountry?.universities.find(u => u.name === createFormData.university);
+                                        const courses = selUni?.courses || [];
+                                        return (
+                                            <select
+                                                value={createFormData.course}
+                                                onChange={(e) => setCreateFormData({ ...createFormData, course: e.target.value })}
+                                                className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                                disabled={!createFormData.university}
+                                            >
+                                                <option value="">{createFormData.university ? 'Select course' : 'Select university first'}</option>
+                                                {courses.map((c) => <option key={c.id} value={c.name}>{c.name}{c.duration ? ` (${c.duration})` : ''}</option>)}
+                                            </select>
+                                        );
+                                    })()}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Intake</label>
+                                    <input
+                                        type="text"
+                                        value={createFormData.intake}
+                                        onChange={(e) => setCreateFormData({ ...createFormData, intake: e.target.value })}
+                                        placeholder="e.g. Sep 2025"
+                                        className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button type="button" variant="secondary" fullWidth onClick={() => setShowCreateModal(false)}>Cancel</Button>
+                                <Button type="submit" fullWidth loading={creating}>Create Application</Button>
+                            </div>
+                        </form>
+                    </Card>
+                </div>
+            )}
+
             {/* Update Stage Modal */}
             {selectedApp && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <Card className="w-full max-w-lg">
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Update Application Stage</h2>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Manage Application</h2>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                            {selectedApp.country} - {getClientName(selectedApp.client_id)}
+                            {selectedApp.country} — {getClientName(selectedApp.client_id)}
                         </p>
+
+                        {/* Stage list */}
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Move to Stage</p>
                         <div className="space-y-2 mb-6">
                             {APPLICATION_STAGES.map((stage) => (
                                 <button
@@ -230,12 +449,30 @@ export default function CounselorApplicationsPage() {
                                 </button>
                             ))}
                         </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-slate-200 dark:border-slate-700 my-4" />
+
+                        {/* Reject */}
+                        {selectedApp.status !== 'rejected' && (
+                            <button
+                                onClick={() => { handleReject(selectedApp); setSelectedApp(null); }}
+                                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-semibold transition-all mb-3"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Reject Application
+                            </button>
+                        )}
+
                         <Button variant="secondary" onClick={() => setSelectedApp(null)} className="w-full">
-                            Cancel
+                            Close
                         </Button>
                     </Card>
                 </div>
             )}
+
         </div>
     );
 }
