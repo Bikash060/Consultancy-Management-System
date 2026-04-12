@@ -10,6 +10,7 @@ export default function CounselorDocumentsPage() {
     const [clients, setClients] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<string>('all');
+    const [clientFilter, setClientFilter] = useState<string>('all');
     const [commentModal, setCommentModal] = useState<{ id: number; show: boolean; comment: string }>({ id: 0, show: false, comment: '' });
 
     const loadData = useCallback(async () => {
@@ -46,8 +47,9 @@ export default function CounselorDocumentsPage() {
     };
 
     const filteredDocuments = documents.filter(doc => {
-        if (filter === 'all') return true;
-        return doc.status === filter;
+        if (filter !== 'all' && doc.status !== filter) return false;
+        if (clientFilter !== 'all' && doc.user_id !== parseInt(clientFilter)) return false;
+        return true;
     });
 
     const statusColors: Record<string, 'info' | 'warning' | 'success' | 'error' | 'default'> = {
@@ -102,7 +104,7 @@ export default function CounselorDocumentsPage() {
             {/* Filter & List */}
             <Card>
                 <div className="flex flex-wrap items-center gap-3 mb-6">
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Filter:</span>
+                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Status:</span>
                     {['all', 'pending', 'verified', 'rejected'].map((f) => (
                         <button
                             key={f}
@@ -115,6 +117,20 @@ export default function CounselorDocumentsPage() {
                             {f.charAt(0).toUpperCase() + f.slice(1)}
                         </button>
                     ))}
+                    <span className="text-slate-300 dark:text-slate-600">|</span>
+                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Client:</span>
+                    <select
+                        value={clientFilter}
+                        onChange={(e) => setClientFilter(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 border-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                        <option value="all">All Clients</option>
+                        {clients.map((c) => (
+                            <option key={c.id} value={c.id}>
+                                {c.profile?.first_name} {c.profile?.last_name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 {filteredDocuments.length > 0 ? (
@@ -139,6 +155,15 @@ export default function CounselorDocumentsPage() {
                                 </div>
                                 <div className="flex items-center gap-3 ml-16 md:ml-0">
                                     <Badge variant={statusColors[doc.status]}>{doc.status.replace('_', ' ')}</Badge>
+                                    <button
+                                        onClick={() => {
+                                            const url = documentsApi.getViewUrl(doc.id);
+                                            window.open(url, '_blank');
+                                        }}
+                                        className="px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                    >
+                                        👁️ View
+                                    </button>
                                     {doc.status === 'pending' && (
                                         <>
                                             <Button
@@ -195,7 +220,11 @@ export default function CounselorDocumentsPage() {
                             <Button
                                 variant="danger"
                                 onClick={async () => {
-                                    // Note: Would need backend support for reject with comment
+                                    try {
+                                        await documentsApi.verify(commentModal.id, 'rejected', commentModal.comment);
+                                    } catch (err) {
+                                        console.error('Failed to reject document:', err);
+                                    }
                                     setCommentModal({ id: 0, show: false, comment: '' });
                                     loadData();
                                 }}
