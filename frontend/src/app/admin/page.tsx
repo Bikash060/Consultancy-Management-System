@@ -26,18 +26,21 @@ export default function AdminDashboard() {
     });
     const [countryStats, setCountryStats] = useState<{ country: string; count: number }[]>([]);
     const [counselorPerformance, setCounselorPerformance] = useState<CounselorPerformance[]>([]);
+    const [monthlyTrendData, setMonthlyTrendData] = useState<{ name: string; applications: number; approved: number }[]>([]);
     const [loading, setLoading] = useState(true);
 
     const loadData = useCallback(async () => {
         try {
-            const [dashRes, countryRes, perfRes] = await Promise.all([
+            const [dashRes, countryRes, perfRes, trendsRes] = await Promise.all([
                 adminApi.getDashboard(),
                 adminApi.getCountryStats(),
                 adminApi.getReports(),
+                adminApi.getMonthlyTrends(),
             ]);
             setStats(dashRes.data.stats || {});
             setCountryStats(countryRes.data.stats || []);
             setCounselorPerformance(perfRes.data.report || []);
+            setMonthlyTrendData(trendsRes.data.trends || []);
         } catch (error) {
             console.error('Failed to load admin dashboard:', error);
         } finally {
@@ -59,16 +62,6 @@ export default function AdminDashboard() {
     const countryChartData = countryStats
         .slice(0, 6)
         .map(cs => ({ name: cs.country, applications: cs.count }));
-
-    // Mock monthly trend data
-    const monthlyTrendData = [
-        { name: 'Jan', applications: 12, approved: 8 },
-        { name: 'Feb', applications: 19, approved: 14 },
-        { name: 'Mar', applications: 15, approved: 11 },
-        { name: 'Apr', applications: 22, approved: 18 },
-        { name: 'May', applications: 28, approved: 22 },
-        { name: 'Jun', applications: stats.total_applications > 0 ? Math.round(stats.total_applications * 0.15) : 25, approved: stats.visa_approved > 0 ? Math.round(stats.visa_approved * 0.2) : 20 },
-    ];
 
     if (loading) {
         return (
